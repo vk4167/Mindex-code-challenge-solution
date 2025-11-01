@@ -15,6 +15,8 @@ import org.springframework.test.context.junit4.SpringRunner;
 
 import static org.junit.Assert.*;
 
+import java.time.LocalDate;
+
 @RunWith(SpringRunner.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class EmployeeServiceImplTest {
@@ -132,6 +134,22 @@ public class EmployeeServiceImplTest {
         assertEquals("John", fetched.getEmployee().getFirstName());
         assertEquals("Development Manager", fetched.getEmployee().getPosition());
     }
+    @Test(expected = RuntimeException.class)
+public void testDuplicateCompensationCreation() {
+    Compensation comp = new Compensation();
+    Employee emp = new Employee();
+    emp.setEmployeeId("16a596ae-edd3-4847-99fe-c4518e82c86f");
+    comp.setEmployee(emp);
+    comp.setSalary(100000);
+    comp.setEffectiveDate(LocalDate.now());
+
+    // First insert
+    restTemplate.postForEntity(compensationUrl, comp, Compensation.class);
+
+    // Second insert should fail
+    restTemplate.postForEntity(compensationUrl, comp, Compensation.class);
+}
+
 
     private static void assertEmployeeEquivalence(Employee expected, Employee actual) {
         assertEquals(expected.getFirstName(), actual.getFirstName());
