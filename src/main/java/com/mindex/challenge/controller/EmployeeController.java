@@ -1,6 +1,7 @@
 package com.mindex.challenge.controller;
 
 import com.mindex.challenge.data.Employee;
+import com.mindex.challenge.data.EmployeeDTO;
 import com.mindex.challenge.data.ReportingStructure;
 import com.mindex.challenge.service.EmployeeService;
 import org.slf4j.Logger;
@@ -26,21 +27,20 @@ public class EmployeeController {
 
         return employeeService.create(employee);
     }
-
     @GetMapping("/employee/{id}")
-   /*  public Employee read(@PathVariable String id) {
-        LOG.debug("Received employee create request for id [{}]", id);
-
-        return employeeService.read(id);
-    }*/
-    public Employee read(@PathVariable String id) {
+public EmployeeDTO read(@PathVariable String id) {
     Employee employee = employeeService.read(id);
-
-    // Remove null or incomplete directReports before returning
-    // So only the actual employee details are shown
-    employee.setDirectReports(null);
-
-    return employee;
+    
+    // Convert to DTO without directReports
+    EmployeeDTO dto = new EmployeeDTO();
+    dto.setEmployeeId(employee.getEmployeeId());
+    dto.setFirstName(employee.getFirstName());
+    dto.setLastName(employee.getLastName());
+    dto.setPosition(employee.getPosition());
+    dto.setDepartment(employee.getDepartment());
+    // Don't set directReports
+    
+    return dto;
 }
 
     @PutMapping("/employee/{id}")
