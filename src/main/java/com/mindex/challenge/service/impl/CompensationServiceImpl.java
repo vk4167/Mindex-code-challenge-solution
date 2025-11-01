@@ -1,4 +1,3 @@
-
 package com.mindex.challenge.service.impl;
 
 import com.mindex.challenge.dao.CompensationRepository;
@@ -21,14 +20,23 @@ public class CompensationServiceImpl implements CompensationService {
 
     @Autowired
     private EmployeeService employeeService;
+   @Override
+public Compensation create(Compensation compensation) {
+    LOG.debug("Creating compensation [{}]", compensation);
 
-    @Override
-    public Compensation create(Compensation compensation) {
-        LOG.debug("Creating compensation [{}]", compensation);
-        Employee emp = employeeService.read(compensation.getEmployee().getEmployeeId());
-        compensation.setEmployee(emp);
-        return compensationRepository.save(compensation);
+    // Validate employee exists
+    Employee emp = employeeService.read(compensation.getEmployee().getEmployeeId());
+    compensation.setEmployee(emp);
+
+    // Prevent duplicate compensation for the same employee
+    Compensation existing = compensationRepository.findByEmployee_EmployeeId(emp.getEmployeeId());
+    if (existing != null) {
+        throw new RuntimeException("Compensation already exists for employeeId: " + emp.getEmployeeId());
     }
+
+    return compensationRepository.save(compensation);
+}
+
 
     @Override
     public Compensation read(String employeeId) {
@@ -47,4 +55,5 @@ public class CompensationServiceImpl implements CompensationService {
         compensation.setEmployee(emp);
         return compensationRepository.save(compensation);
     }
+    
 }
