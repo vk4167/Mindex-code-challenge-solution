@@ -219,12 +219,65 @@ Invoke-RestMethod -Uri "http://localhost:8080/compensation" `
 
 
 and validated the response structure and persisted state.
+## Changes/Updates Made
+
+### Bug Fixes & Improvements
+
+#### 1. **Fixed Cycle Detection in Reporting Structure**
+- **Issue:** The visited set wasn't being shared between counting and DTO conversion phases, which could cause infinite loops with circular references
+- **Fix:** Now the visited set is cleared and reused for both phases, ensuring consistent cycle detection throughout
+- **Impact:** Prevents potential infinite recursion and stack overflow errors
+
+#### 2. **Prevented Duplicate Compensation Records**
+- **Issue:** Multiple compensation records could be created for the same employee, causing data inconsistency
+- **Fix:** Added dual protection:
+  - Application-level check in `CompensationServiceImpl.create()` 
+  - Database-level unique compound index on `employee.employeeId`
+- **Impact:** Ensures data integrity and prevents conflicting salary information
+
+#### 3. **Added MongoDB Document ID to Compensation**
+- **Issue:** Compensation entity lacked proper MongoDB `@Id` field for document tracking
+- **Fix:** Added `@Id private String id;` field and `@Document` annotation
+- **Impact:** Enables proper CRUD operations and document identification in MongoDB
+
+#### 4. **Fixed Controller Domain Object Mutation**
+- **Issue:** The Employee read endpoint was mutating domain objects by setting `directReports = null`
+- **Fix:** Changed endpoint to return `EmployeeDTO` instead, with proper field mapping
+- **Impact:** Prevents cache corruption and follows proper DTO pattern for API responses
+
+#### 5. **Added Self-Reference Protection**
+- **Issue:** Employees could potentially reference themselves in directReports
+- **Fix:** Added explicit self-reference checks in both `countReports()` and `convertToDTO()` methods
+- **Impact:** Handles edge case gracefully without counting self-references
+
+#### 6. **Enhanced Test Coverage**
+- **Added:** Test for duplicate compensation creation
+- **Coverage:** Now tests both happy paths and error scenarios
+- **Impact:** Better regression protection and validation of business rules
+
+### Code Quality Improvements
+
+- **Cleaner separation of concerns** with DTO pattern in controller layer
+- **Improved logging** with descriptive messages for debugging
+- **Better error handling** with validation before database operations
+- **Consistent cycle detection** across all recursive operations
+- **Database constraints** to enforce business rules at multiple layers
+
+### Performance Optimizations
+
+- **Pre-loading employee map** to avoid N+1 query problem (O(1) lookups)
+- **Efficient cycle detection** with HashSet for O(1) membership checks
+- **Linear time complexity** O(N) for reporting structure computation
 
 ## Future Enhancements
 - Add caching for precomputed reporting structures to reduce repeated traversal time to O(1).
 - Maintain historical compensation records with effective-date versioning.
 - Implement authentication and role-based access for employee data APIs.
 - Add OpenAPI (Swagger) documentation for endpoint discovery.
+- Add input validation annotations (@NotNull, @Positive) on entity fields.
+- Implement custom exception classes for better error handling.
+- Add proper HTTP status codes (201 for creation, 404 for not found).
 
 ## Delivery
 Please upload your results to a publicly accessible Git repo. Free ones are provided by GitHub and Bitbucket.
+
