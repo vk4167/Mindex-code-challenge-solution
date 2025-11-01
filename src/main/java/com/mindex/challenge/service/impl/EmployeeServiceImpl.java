@@ -1,4 +1,3 @@
-
 package com.mindex.challenge.service.impl;
 
 import com.mindex.challenge.dao.EmployeeRepository;
@@ -24,31 +23,32 @@ public class EmployeeServiceImpl implements EmployeeService {
     @Autowired
     private EmployeeRepository employeeRepository;
 
-    // Advanced Implementation of getReportingStructure
+    // Reporting Structure
     @Override
-    @Cacheable("reportingStructure") // Optional: enables Spring caching
+    @Cacheable("reportingStructure")
     public ReportingStructure getReportingStructure(String employeeId) {
         log.info("Fetching ReportingStructure for employeeId: {}", employeeId);
 
-        // 1. Preload all employees at once to avoid N+1 DB queries
+        // Preload all employees at once to avoid multiple DB lookups
         List<Employee> allEmployees = employeeRepository.findAll();
         Map<String, Employee> employeeMap = allEmployees.stream()
                 .collect(Collectors.toMap(Employee::getEmployeeId, e -> e));
 
-        // 2. Validate ID
+        // Validate input employeeId
         Employee employee = employeeMap.get(employeeId);
         if (employee == null) {
             throw new RuntimeException("Invalid employeeId: " + employeeId);
         }
 
-        // 3. Cycle protection
+        //Initialize a visited set for cycle detection
         Set<String> visited = new HashSet<>();
 
-        // 4. Count reports recursively
+        // Count all distinct reports recursively
         int numberOfReports = countReports(employee, employeeMap, visited);
 
-        // 5. Convert to DTO for clean API output
-        EmployeeDTO dto = convertToDTO(employee, employeeMap, new HashSet<>());
+        // Convert employee hierarchy to a DTO (fully expanded)
+        visited.clear(); // reset visited to avoid skipping nodes in conversion
+        EmployeeDTO dto = convertToDTO(employee, employeeMap, visited);
 
         log.info("ReportingStructure generated for {} with {} reports",
                 employee.getFirstName(), numberOfReports);
@@ -56,7 +56,7 @@ public class EmployeeServiceImpl implements EmployeeService {
         return new ReportingStructure(dto, numberOfReports);
     }
 
-    // Recursive report counting
+    // Recursively count all distinct reports under an employee
     private int countReports(Employee employee,
                              Map<String, Employee> employeeMap,
                              Set<String> visited) {
@@ -71,9 +71,8 @@ public class EmployeeServiceImpl implements EmployeeService {
             String id = report.getEmployeeId();
             if (id == null) continue;
 
-            // Prevent cycles
-            if (visited.contains(id)) {
-                log.warn("Cycle detected for employeeId: {}", id);
+            // Skip self-reference and prevent cycles
+            if (employee.getEmployeeId().equals(id) || visited.contains(id)) {
                 continue;
             }
 
@@ -83,15 +82,22 @@ public class EmployeeServiceImpl implements EmployeeService {
                 total += 1 + countReports(fullReport, employeeMap, visited);
             }
         }
+
         return total;
     }
 
-    // Recursive conversion to EmployeeDTO for clean API response
+    // Recursively build full EmployeeDTO hierarchy with all report details
     private EmployeeDTO convertToDTO(Employee employee,
                                      Map<String, Employee> employeeMap,
                                      Set<String> visited) {
 
         if (employee == null) return null;
+        if (visited.contains(employee.getEmployeeId())) {
+            log.warn("Cycle detected during DTO conversion for employeeId: {}", employee.getEmployeeId());
+            return null;
+        }
+
+        visited.add(employee.getEmployeeId());
 
         EmployeeDTO dto = new EmployeeDTO();
         dto.setEmployeeId(employee.getEmployeeId());
@@ -100,26 +106,25 @@ public class EmployeeServiceImpl implements EmployeeService {
         dto.setDepartment(employee.getDepartment());
         dto.setPosition(employee.getPosition());
 
-        if (employee.getDirectReports() != null) {
-            List<EmployeeDTO> reports = employee.getDirectReports().stream()
-                    .filter(r -> r.getEmployeeId() != null)
-                    .map(r -> {
-                        Employee full = employeeMap.get(r.getEmployeeId());
-                        if (full != null && !visited.contains(full.getEmployeeId())) {
-                            visited.add(full.getEmployeeId());
-                            return convertToDTO(full, employeeMap, visited);
-                        }
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+        if (employee.getDirectReports() != null && !employee.getDirectReports().isEmpty()) {
+            List<EmployeeDTO> reports = new ArrayList<>();
+            for (Employee dr : employee.getDirectReports()) {
+                String id = dr.getEmployeeId();
+                if (id == null || id.equals(employee.getEmployeeId())) continue;
+
+                Employee full = employeeMap.get(id);
+                EmployeeDTO childDTO = convertToDTO(full, employeeMap, visited);
+                if (childDTO != null) reports.add(childDTO);
+            }
             dto.setDirectReports(reports);
+        } else {
+            dto.setDirectReports(Collections.emptyList());
         }
 
         return dto;
     }
 
-    // (Other service methods like create/read/update stay unchanged)
+    // CRUD Operations
     @Override
     public Employee create(Employee employee) {
         log.debug("Creating employee [{}]", employee);
